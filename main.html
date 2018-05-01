@@ -1,0 +1,144 @@
+<html>
+    <head>
+        <style>
+            *{
+                font-family: 'Segoe UI Light', Tahoma, Geneva, Verdana, sans-serif;
+                margin: 0;
+                outline: 0;
+            }
+            body{
+                padding:5px;
+            }
+            ::selection {
+               background: black; /* WebKit/Blink Browsers */
+            }
+            ::-moz-selection {
+                background: black; /* Gecko Browsers */
+            }
+            .header{
+                text-align: center;
+                margin-bottom: 5px;
+            }
+            .text{
+                width:25px;
+            }
+            .pDiv{
+                margin-top:10px;
+            }
+            #submitProcesses{
+                width:85px;
+            }
+            #errorDetector{
+                color:red;
+            }
+            .resultTh{
+                text-align: left;
+                border: 1px solid black;
+                height: 400 px;
+            }
+            .resultTd {
+                border: 1px solid black;
+                border-bottom: 0;
+                height: 20px;
+                text-align: left;
+            }
+            #resultTable{
+                border-collapse: collapse;
+                margin-top:10px;
+            }
+            h3{
+                display: inline-block;
+                margin-right: 15%;
+            }
+        </style>
+    </head>
+    <body>
+        <h2 class="header">Short Job First - Preemptive</h2>
+        <label>Processes: </label><input id="p" class="text" type="text" value="3">
+        <button id="pSubmit" onclick="addRows()">Submit</button>
+        <br>
+        <div class="pDiv">
+            <table id="processes" cellspacing="4">
+            </table>
+        </div>
+        <button id="submitProcesses" onclick="sendValues()">Submit</button>
+        <h4 id="errorDetector"></h4>
+        <div id="chart"></div>
+        <div id="avg"></div>
+        <script>
+            var pSubmit = document.getElementById('pSubmit');
+            var p = document.getElementById('p');
+            var processes = document.getElementById('processes')
+            var submitProcesses = document.getElementById('submitProcesses');
+
+            const electron = require('electron');
+            const {ipcRenderer} = electron;
+            
+            addRows();
+
+            function addRows(){
+                processes.innerHTML = '<tr><th>No.</th><th>AT</th><th>BT</th><th>WT</th><th>TT</th><th>RT</th></tr>';
+                for(i=1;i<=p.value;i++){
+                    processes.innerHTML += '<td id="pId' + i + '">' + i + '</td><td><input id="AT' + i + '" class="text" type="text"></td><td><input id="BT' + i + '" class="text" type="text"></td><td id="WT' + i + '">0</td><td id="TT' + i + '">0</td><td id="RT' + i + '">0</td>';
+                }
+            }
+
+            function sendValues(){
+                var pArray = [];
+                var errorDetector = 0;
+                for(i=0;i<=p.value;i++){
+                    pArray.push([]);
+                }
+                for(i=1;i<=p.value;i++){
+                    var AT = parseInt(document.getElementById('AT' + i).value);
+                    var BT = parseInt(document.getElementById('BT' + i).value);
+                    if(isNaN(AT) || isNaN(BT) || AT<0 || BT<0)  errorDetector++;
+                    pArray[i][0] = AT;
+                    pArray[i][1] = BT;
+                    pArray[i][2] = 0; //WT
+                    pArray[i][3] = 0; //TT
+                }
+                if(errorDetector > 0) document.getElementById('errorDetector').innerHTML = "Error!";
+                else{
+                    document.getElementById('errorDetector').innerHTML = "";
+                    ipcRenderer.send('processes', pArray);
+                }
+            }
+
+            function draw(chart){
+                var th = '';
+                var td = '';
+                var chartDiv = document.getElementById('chart');
+                for(i=0;i<chart.length;i++){
+                    if(chart[i]){
+                        th += '<th class="resultTh" style="height: 60px; width: 40px">P' + chart[i] + '</th>';
+                        td += '<td class="resultTd">' + i + '</td>';
+                    }
+                }
+                chartDiv.innerHTML = '<table id="resultTable"><tr>' + th + '</tr><tr>' + td + '</tr></table>';
+            }
+            function update(pro){
+                var avgDiv = document.getElementById('avg');
+                var totalWait = 0;
+                var totalTurnAround = 0;
+                var totalResponse = 0;
+                var N = pro.length-1;
+                for(i=1;i<pro.length;i++){
+                    document.getElementById('WT' + i).innerHTML = pro[i][2];
+                    document.getElementById('TT' + i).innerHTML = pro[i][3];
+                    document.getElementById('RT' + i).innerHTML = pro[i][4];
+                    totalWait += pro[i][2];
+                    totalTurnAround += pro[i][3];
+                    totalResponse += pro[i][4];
+                }
+                avgDiv.innerHTML = '<h3>WT:' + (totalWait/N).toFixed(2) + '</h3>' + '<h3>TT:' + (totalTurnAround/N).toFixed(2) + '</h3>' + '<h3>RT:' + (totalResponse/N).toFixed(2) + '</h3>';
+            }
+            
+            ipcRenderer.on('info', function(e, response){
+                //console.log(response.processes);
+                draw(response.chart);
+                update(response.processes);                
+            });
+        </script>
+    </body>
+</html>
